@@ -1,0 +1,51 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - rbac
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac
+  resources:
+  - rolebindings/status
+  verbs:
+  - get
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - temprolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - temprolebindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - temprolebindings/status
+  verbs:
+  - get
+  - patch
+  - update
