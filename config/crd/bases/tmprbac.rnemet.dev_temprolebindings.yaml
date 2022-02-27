@@ -36,8 +36,8 @@ spec:
             description: TempRoleBindingSpec defines the desired state of TempRoleBinding
             properties:
               duration:
-                description: 'Duration, duration of RoleBinding from the moment of
-                  creation. It should with string indicating timeunit: s, m, h, d'
+                description: Duration, duration of RoleBinding from the moment of
+                  creation
                 type: string
               roleRef:
                 description: RoleRef contains information that points to the role
@@ -96,11 +96,12 @@ spec:
             description: TempRoleBindingStatus defines the observed state of TempRoleBinding
             properties:
               lastCheckTime:
-                description: Information when was the last time the job was successfully
-                  scheduled.
+                description: LastCheckTime, information when was the last time the
+                  job was successfully scheduled.
                 format: date-time
                 type: string
               status:
+                description: Status, information about object status
                 type: string
             type: object
         type: object

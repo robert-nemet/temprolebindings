@@ -1,7 +1,7 @@
 /*
 Copyright 2022.
 
-Licensed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License, VersionAnnotation 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -22,11 +22,13 @@ import (
 )
 
 const (
-	TempRoleBindigStatusExpired  = "Expired"
-	TempRoleBindigStatusApproved = "Approved"
-	TempRoleBindigStatusApplied  = "Applied"
-	TempRoleBindigStatusPending  = "Pending"
-	TempRoleBindigStatusDeclined = "Declined"
+	TempRoleBindingStatusExpired  = "Expired"
+	TempRoleBindingStatusApproved = "Approved"
+	TempRoleBindingStatusApplied  = "Applied"
+	TempRoleBindingStatusPending  = "Pending"
+	TempRoleBindingStatusDeclined = "Declined"
+	// TempRoleBindingStatusError mark when there is an error
+	TempRoleBindingStatusError = "Error"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -37,7 +39,7 @@ type TempRoleBindingSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Duration, duration of RoleBinding from the moment of creation. It should with string indicating timeunit: s, m, h, d
+	// Duration, duration of RoleBinding from the moment of creation
 	Duration string `json:"duration,omitempty"`
 	// Spec, RoleBinding specification
 	Subjects []rbac.Subject `json:"subjects,omitempty"`
@@ -49,10 +51,11 @@ type TempRoleBindingStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// Status, information about object status
 	// +optional
 	Status string `json:"status,omitempty"`
 
-	// Information when was the last time the job was successfully scheduled.
+	// LastCheckTime, information when was the last time the job was successfully scheduled.
 	// +optional
 	LastCheckTime *metav1.Time `json:"lastCheckTime,omitempty"`
 }
