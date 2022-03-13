@@ -1,0 +1,9 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempRoleBinding
+metadata:
+  name: temprolebinding-sample
+  annotations:
+    "tmprbac/status": Pending
+    "tmprbac/version": v1
+status:
+  status: Pending

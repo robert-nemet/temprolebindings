@@ -18,12 +18,13 @@ package v1
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"time"
 )
 
 // log is for logging in this package.
@@ -48,10 +49,14 @@ const (
 func (r *TempRoleBinding) Default() {
 	temprolebindinglog.Info("default", "name", r.Name)
 
-	r.ObjectMeta.Annotations[VersionAnnotation] = "v1"
+	if len(r.ObjectMeta.Annotations) == 0 {
+		r.ObjectMeta.Annotations = make(map[string]string)
 
-	if _, exists := r.ObjectMeta.Annotations[StatusAnnotation]; !exists {
-		r.ObjectMeta.Annotations[StatusAnnotation] = TempRoleBindingStatusPending
+		r.ObjectMeta.Annotations[VersionAnnotation] = "v1"
+
+		if _, exists := r.ObjectMeta.Annotations[StatusAnnotation]; !exists {
+			r.ObjectMeta.Annotations[StatusAnnotation] = TempRoleBindingStatusPending
+		}
 	}
 }
 

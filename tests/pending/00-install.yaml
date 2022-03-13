@@ -1,0 +1,15 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempRoleBinding
+metadata:
+  name: temprolebinding-sample
+spec:
+  duration: 60s
+  subjects:
+    - kind: User
+      name: john
+      apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: observer
+    apiGroup: rbac.authorization.k8s.io
+
