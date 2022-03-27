@@ -2,6 +2,7 @@ apiVersion: tmprbac.rnemet.dev/v1
 kind: TempRoleBinding
 metadata:
   name: jonh-observe-declined
+  namespace: test-kuttl
 spec:
   duration: 60s
   subjects:

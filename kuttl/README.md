@@ -32,6 +32,11 @@ openssl genrsa -out tls.key 2048
 openssl req -x509 -new -nodes -key tls.key -subj "/CN=172.18.0.2" -out tls.crt
 ```
 
-## Bugs
+# Test Scenario
 
-* [X] Deleting TempRoleBinding in Pending Status tries to delete RoleBindig
+| Name | Command(s) | Explanations |
+|---|---|---|
+| Create Pending | `k apply -f tmprbac_v1_temprolebinding.yaml` |Status should show all conditions. Only Pending should be true, and have set transitionTime. Phase should be set to Pending |
+|Decline | `kubectl -n default annotate temprolebindings.tmprbac.rnemet.dev temprolebinding-sample  tmprbac/status=Declined --overwrite` | This sets annotation to Declined. Status condition Declined is true. Transition time is set. Phase is Declined |
+| Approved | `kubectl -n default annotate temprolebindings.tmprbac.rnemet.dev temprolebinding-sample  tmprbac/status=Approved --overwrite` | This sets annotation to Approved. Status condition changed to Approved. Transition time set. Phase Approved |
+

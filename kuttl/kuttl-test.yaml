@@ -1,10 +1,9 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
-namespace: test-kuttl
 manifestDirs:
 - ./manifests
 commands:
 - command: kubectl certificate approve john
 testDirs:
-- .
+  - ./tests
 startKIND: false

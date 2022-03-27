@@ -95,13 +95,31 @@ spec:
           status:
             description: TempRoleBindingStatus defines the observed state of TempRoleBinding
             properties:
-              lastCheckTime:
-                description: LastCheckTime, information when was the last time the
-                  job was successfully scheduled.
-                format: date-time
-                type: string
-              status:
-                description: Status, information about object status
+              conditions:
+                description: Conditions, transition list of an object
+                items:
+                  description: Condition is definition of object status
+                  properties:
+                    message:
+                      description: Message explanatin for condition
+                      type: string
+                    status:
+                      description: Status if condition is met True or False
+                      type: boolean
+                    transitionTime:
+                      description: TransitionTime when transtion is executed
+                      format: date-time
+                      type: string
+                    type:
+                      description: Type statu stype
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              phase:
+                description: Phase, the latest phase, final state of object
                 type: string
             type: object
         type: object

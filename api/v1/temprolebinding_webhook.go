@@ -40,11 +40,6 @@ func (r *TempRoleBinding) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &TempRoleBinding{}
 
-const (
-	VersionAnnotation = "tmprbac/version"
-	StatusAnnotation  = "tmprbac/status"
-)
-
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *TempRoleBinding) Default() {
 	temprolebindinglog.Info("default", "name", r.Name)
@@ -53,10 +48,6 @@ func (r *TempRoleBinding) Default() {
 		r.ObjectMeta.Annotations = make(map[string]string)
 
 		r.ObjectMeta.Annotations[VersionAnnotation] = "v1"
-
-		if _, exists := r.ObjectMeta.Annotations[StatusAnnotation]; !exists {
-			r.ObjectMeta.Annotations[StatusAnnotation] = TempRoleBindingStatusPending
-		}
 	}
 }
 

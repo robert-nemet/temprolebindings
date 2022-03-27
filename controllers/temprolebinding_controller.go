@@ -60,42 +60,33 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	var tempRoleBinding tmprbacv1.TempRoleBinding
 
-	err := r.Get(ctx, req.NamespacedName, &tempRoleBinding)
+	if err := r.Get(ctx, req.NamespacedName, &tempRoleBinding); err != nil {
+		log.Info("[TRB] cound not find TempRoleBinding")
+		// Do deletion in finaliser
+		// if errors.IsNotFound(err) {
+		// 	log.Info("[TempRoleBinding] TempRoleBinding is deleted, delete RoleBinding")
+		// 	return r.cleanRoleBinding(ctx, req.NamespacedName)
+		// }
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// get current TempRoleBindingStatus
+	currentStatus := r.calculateCurrentStatus(tempRoleBinding)
+	// calculate next status
+	nextStatus := r.calculateNextStatus(tempRoleBinding)
+	// excute translation to next status
+	result, err := r.executeTransition(ctx, tempRoleBinding, currentStatus, nextStatus)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("[TempRoleBinding] TempRoleBinding is deleted, delete RoleBinding")
-			return r.cleanRoleBinding(ctx, req.NamespacedName)
-		}
+		log.Error(err, "[TRB] cound not find TempRoleBinding")
+		return ctrl.Result{}, err
+	}
+	// save status
+	if err := r.reconcileStatus(ctx, tempRoleBinding, nextStatus); err != nil {
+		log.Error(err, "[TRB] cound not save Status")
 		return ctrl.Result{}, err
 	}
 
-	switch tempRoleBinding.ObjectMeta.Annotations[tmprbacv1.StatusAnnotation] {
-	case tmprbacv1.TempRoleBindingStatusPending:
-		r.reconcileStatus(ctx, tempRoleBinding, tmprbacv1.TempRoleBindingStatusPending)
-		break
-	case tmprbacv1.TempRoleBindingStatusApproved:
-		return r.setTempRoleBindingApproved(ctx, tempRoleBinding)
-	case tmprbacv1.TempRoleBindingStatusApplied:
-		return r.checkTempTempRoleBindingApplied(ctx, tempRoleBinding)
-	case tmprbacv1.TempRoleBindingStatusExpired:
-		r.reconcileStatus(ctx, tempRoleBinding, tmprbacv1.TempRoleBindingStatusExpired)
-		break
-	case tmprbacv1.TempRoleBindingStatusDeclined:
-		r.reconcileStatus(ctx, tempRoleBinding, tmprbacv1.TempRoleBindingStatusDeclined)
-		break
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *TempRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempRoleBinding, status string) {
-	if trb.Status.Status != status {
-		log := log.FromContext(ctx)
-		trb.Status.Status = status
-		if err := r.Status().Update(ctx, &trb); err != nil {
-			log.Error(err, fmt.Sprintf("[TempRoleBinding] error updating TempRoleBinding status from %s to %s", trb.Status.Status, status))
-		}
-	}
+	return result, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -103,6 +94,173 @@ func (r *TempRoleBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tmprbacv1.TempRoleBinding{}).
 		Complete(r)
+}
+
+// calculateCurrentStatus for TempRoleBindingStatus
+func (r *TempRoleBindingReconciler) calculateCurrentStatus(trb tmprbacv1.TempRoleBinding) tmprbacv1.TempRoleBindingStatus {
+	if len(trb.Status.Phase) == 0 {
+		return tmprbacv1.TempRoleBindingStatus{
+			Conditions: []tmprbacv1.Condition{
+				{
+					TransitionTime: metav1.Now(),
+					Status:         true,
+					Type:           tmprbacv1.TempRoleBindingStatusPending,
+				},
+				{
+					Status: false,
+					Type:   tmprbacv1.TempRoleBindingStatusDeclined,
+				},
+				{
+					Status: false,
+					Type:   tmprbacv1.TempRoleBindingStatusApproved,
+				},
+				{
+					Status: false,
+					Type:   tmprbacv1.TempRoleBindingStatusApplied,
+				},
+				{
+					Status: false,
+					Type:   tmprbacv1.TempRoleBindingStatusExpired,
+				},
+				{
+					Status: false,
+					Type:   tmprbacv1.TempRoleBindingStatusError,
+				},
+			},
+			Phase: tmprbacv1.TempRoleBindingStatusPending,
+		}
+	}
+	return trb.Status
+}
+
+// calculateNextStatus ...
+func (r *TempRoleBindingReconciler) calculateNextStatus(trb tmprbacv1.TempRoleBinding) tmprbacv1.TempRoleBindingStatus {
+	curentStatus := r.calculateCurrentStatus(trb)
+	if curentStatus.Phase == tmprbacv1.TempRoleBindingStatusExpired {
+		return curentStatus
+	}
+	if curentStatus.Phase == tmprbacv1.TempRoleBindingStatusApplied {
+		if r.isTempTempRoleBindingExpired(trb) {
+			next := tmprbacv1.TempRoleBindingStatusExpired
+			for i, v := range curentStatus.Conditions {
+				if v.Type == next {
+					curentStatus.Conditions[i].Status = true
+					curentStatus.Conditions[i].TransitionTime = metav1.Now()
+					curentStatus.Phase = next
+					return curentStatus
+				}
+			}
+		}
+		return curentStatus
+	}
+	if curentStatus.Phase == tmprbacv1.TempRoleBindingStatusApproved {
+		// next should be applied
+		next := tmprbacv1.TempRoleBindingStatusApplied
+		for i, v := range curentStatus.Conditions {
+			if v.Type == next {
+				curentStatus.Conditions[i].Status = true
+				curentStatus.Conditions[i].TransitionTime = metav1.Now()
+				curentStatus.Phase = next
+				return curentStatus
+			}
+		}
+		return curentStatus
+	}
+	if status, ok := trb.Annotations[tmprbacv1.StatusAnnotation]; ok {
+		// set one from annotation
+		next := tmprbacv1.RoleBindingStatus(status)
+		for i, v := range curentStatus.Conditions {
+			if v.Type == next {
+				curentStatus.Conditions[i].Status = true
+				curentStatus.Conditions[i].TransitionTime = metav1.Now()
+				curentStatus.Phase = next
+				return curentStatus
+			}
+		}
+	}
+	return curentStatus
+}
+
+// reconcileStatus save TempRoleBindingStatus
+func (r *TempRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus) error {
+	log := log.FromContext(ctx)
+	if trb.Status.Phase != status.Phase {
+		log.Info("Status phases are different saving status")
+		oldPhase := trb.Status.Phase
+		trb.Status = status
+		if err := r.Status().Update(ctx, &trb); err != nil {
+			log.Error(err, fmt.Sprintf("[TRB] error updating TempRoleBinding status from %s to %v", oldPhase, status))
+			return err
+		}
+	}
+	return nil
+}
+
+// executeTransition execute transition from one to another status
+func (r *TempRoleBindingReconciler) executeTransition(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, error) {
+
+	log := log.FromContext(ctx)
+	log.Info(fmt.Sprintf("[TRB] Executing transaction from %s to %s", status.Phase, next.Phase))
+	// nothing happen
+	if status.Phase == next.Phase {
+		log.Info("[TRB] Current and next Phase are the same. No Transition.")
+		return ctrl.Result{}, nil
+	}
+
+	result, ok, err := r.switchFromPendingToApproved(ctx, trb, status, next)
+	if ok {
+		return result, err
+	}
+
+	result, ok, err = r.switchFromPendingToDeclined(ctx, trb, status, next)
+	if ok {
+		return result, err
+	}
+
+	result, ok, err = r.switchFromAppliedToExpired(ctx, trb, status, next)
+	if ok {
+		return result, err
+	}
+
+	result, ok, err = r.switchFromApprovedToApplied(ctx, trb, status, next)
+	if ok {
+		return result, err
+	}
+
+	return ctrl.Result{}, errors.NewBadRequest(fmt.Sprintf("Invalid Transition for TempRoleBinding from %v to %v", status.Phase, next.Phase))
+}
+
+// switchFromPendingToDeclined execute transation from Pending to Declined
+func (r *TempRoleBindingReconciler) switchFromPendingToDeclined(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, bool, error) {
+	if status.Phase == tmprbacv1.TempRoleBindingStatusPending && next.Phase == tmprbacv1.TempRoleBindingStatusDeclined {
+		return ctrl.Result{}, true, nil
+	}
+	return ctrl.Result{}, false, nil
+}
+
+func (r *TempRoleBindingReconciler) switchFromPendingToApproved(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, bool, error) {
+	if status.Phase == tmprbacv1.TempRoleBindingStatusPending && next.Phase == tmprbacv1.TempRoleBindingStatusApproved {
+		return ctrl.Result{}, true, nil
+	}
+	return ctrl.Result{}, false, nil
+}
+
+func (r *TempRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, bool, error) {
+	if status.Phase == tmprbacv1.TempRoleBindingStatusApproved && next.Phase == tmprbacv1.TempRoleBindingStatusApplied {
+		// create new role bindings
+		result, err := r.setTempRoleBindingApproved(ctx, trb)
+		return result, true, err
+	}
+	return ctrl.Result{}, false, nil
+}
+
+func (r *TempRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, bool, error) {
+	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
+		// delete RoleBindings
+		result, err := r.cleanRoleBinding(ctx, types.NamespacedName{Namespace: trb.Namespace, Name: trb.Name})
+		return result, true, err
+	}
+	return ctrl.Result{}, false, nil
 }
 
 func (r *TempRoleBindingReconciler) cleanRoleBinding(ctx context.Context, req types.NamespacedName) (ctrl.Result, error) {
@@ -135,12 +293,7 @@ func (r *TempRoleBindingReconciler) setTempRoleBindingApproved(ctx context.Conte
 	log.Info(fmt.Sprintf("[TempRoleBinding] approved Name %s Namespace %s", req.Name, req.Namespace))
 
 	// Gate when status is changed
-	if req.Status.Status != tmprbacv1.TempRoleBindingStatusPending {
-		req.ObjectMeta.Annotations[tmprbacv1.StatusAnnotation] = req.Status.Status
-		if err := r.Update(ctx, &req); err != nil {
-			log.Error(err, "[TempRoleBinding] failed to update status annotation")
-			return ctrl.Result{}, err
-		}
+	if req.Status.Phase != tmprbacv1.TempRoleBindingStatusApproved {
 		return ctrl.Result{}, nil
 	}
 
@@ -153,15 +306,6 @@ func (r *TempRoleBindingReconciler) setTempRoleBindingApproved(ctx context.Conte
 
 		reschedule, err := r.reconcileRoleBinding(ctx, req)
 		if err != nil {
-			return ctrl.Result{}, err
-		}
-
-		req.Status.Status = tmprbacv1.TempRoleBindingStatusApplied
-		req.Status.LastCheckTime = &metav1.Time{Time: req.ObjectMeta.CreationTimestamp.Time}
-
-		err = r.Status().Update(ctx, &req)
-		if err != nil {
-			log.Error(err, "[TempRoleBonding] can not update status")
 			return ctrl.Result{}, err
 		}
 
@@ -203,30 +347,17 @@ func (r *TempRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, tr
 	return &duration, nil
 }
 
-func (r *TempRoleBindingReconciler) checkTempTempRoleBindingApplied(ctx context.Context, trb tmprbacv1.TempRoleBinding) (ctrl.Result, error) {
+func (r *TempRoleBindingReconciler) isTempTempRoleBindingExpired(trb tmprbacv1.TempRoleBinding) bool {
 
-	if trb.Status.Status != tmprbacv1.TempRoleBindingStatusApplied {
-		trb.Annotations[tmprbacv1.StatusAnnotation] = trb.Status.Status
-		if err := r.Update(ctx, &trb); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+	if trb.Status.Phase != tmprbacv1.TempRoleBindingStatusApplied {
+		return false
 	}
 
-	lastTimeChecked := trb.Status.LastCheckTime.Time
+	appliedCondition, _ := trb.Status.GetConditionApplied()
+	lastTimeChecked := appliedCondition.TransitionTime
 	duration, _ := time.ParseDuration(trb.Spec.Duration)
 	if lastTimeChecked.Add(duration).Before(time.Now()) {
-		_, err := r.cleanRoleBinding(ctx, types.NamespacedName{Namespace: trb.Namespace, Name: trb.Name})
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-
-		trb.Status.Status = tmprbacv1.TempRoleBindingStatusExpired
-		err = r.Status().Update(ctx, &trb)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+		return true
 	}
-	return ctrl.Result{}, nil
+	return false
 }

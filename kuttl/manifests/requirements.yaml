@@ -18,3 +18,7 @@ spec:
   usages:
   - client auth
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-kuttl

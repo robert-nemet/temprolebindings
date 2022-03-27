@@ -21,14 +21,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type RoleBindingStatus string
+
 const (
-	TempRoleBindingStatusExpired  = "Expired"
-	TempRoleBindingStatusApproved = "Approved"
-	TempRoleBindingStatusApplied  = "Applied"
-	TempRoleBindingStatusPending  = "Pending"
-	TempRoleBindingStatusDeclined = "Declined"
-	// TempRoleBindingStatusError mark when there is an error
-	TempRoleBindingStatusError = "Error"
+	TempRoleBindingStatusPending  RoleBindingStatus = "Pending"
+	TempRoleBindingStatusApproved RoleBindingStatus = "Approved"
+	TempRoleBindingStatusApplied  RoleBindingStatus = "Applied"
+	TempRoleBindingStatusExpired  RoleBindingStatus = "Expired"
+	TempRoleBindingStatusDeclined RoleBindingStatus = "Declined"
+	TempRoleBindingStatusError    RoleBindingStatus = "Error"
+
+	VersionAnnotation = "tmprbac/version"
+	StatusAnnotation  = "tmprbac/status"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -51,13 +55,23 @@ type TempRoleBindingStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Status, information about object status
+	// Conditions, transition list of an object
 	// +optional
-	Status string `json:"status,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
+	// Phase, the latest phase, final state of object
+	Phase RoleBindingStatus `json:"phase,omitempty"`
+}
 
-	// LastCheckTime, information when was the last time the job was successfully scheduled.
-	// +optional
-	LastCheckTime *metav1.Time `json:"lastCheckTime,omitempty"`
+// Condition is definition of object status
+type Condition struct {
+	// TransitionTime when transtion is executed
+	TransitionTime metav1.Time `json:"transitionTime,omitempty"`
+	// Status if condition is met True or False
+	Status bool `json:"status"`
+	// Message explanatin for condition
+	Message string `json:"message,omitempty"`
+	// Type statu stype
+	Type RoleBindingStatus `json:"type"`
 }
 
 //+kubebuilder:object:root=true

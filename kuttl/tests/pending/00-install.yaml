@@ -2,6 +2,7 @@ apiVersion: tmprbac.rnemet.dev/v1
 kind: TempRoleBinding
 metadata:
   name: temprolebinding-sample
+  namespace: default
 spec:
   duration: 60s
   subjects:

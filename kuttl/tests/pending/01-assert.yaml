@@ -1,0 +1,20 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempRoleBinding
+metadata:
+  name: temprolebinding-sample
+  namespace: default
+status:
+  conditions:
+  - status: true
+    type: Pending
+  - status: false
+    type: Declined
+  - status: false
+    type: Approved
+  - status: false
+    type: Applied
+  - status: false
+    type: Expired
+  - status: false
+    type: Error
+  phase: Pending
