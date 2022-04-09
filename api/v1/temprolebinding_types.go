@@ -26,6 +26,7 @@ type RoleBindingStatus string
 const (
 	TempRoleBindingStatusPending  RoleBindingStatus = "Pending"
 	TempRoleBindingStatusApproved RoleBindingStatus = "Approved"
+	TempRoleBindingStatusHold     RoleBindingStatus = "Hold"
 	TempRoleBindingStatusApplied  RoleBindingStatus = "Applied"
 	TempRoleBindingStatusExpired  RoleBindingStatus = "Expired"
 	TempRoleBindingStatusDeclined RoleBindingStatus = "Declined"
@@ -43,11 +44,15 @@ type TempRoleBindingSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// ApprovalRequired, flag if approval is required
+	ApprovalRequired bool `json:"approvalRequired,omitempty"`
 	// Duration, duration of RoleBinding from the moment of creation
-	Duration string `json:"duration,omitempty"`
+	Duration metav1.Duration `json:"duration,omitempty"`
+	// StartStop, defines when TempRoleBinding is applied and when expires
+	StartStop StartStop `json:"startStop,omitempty"`
 	// Spec, RoleBinding specification
 	Subjects []rbac.Subject `json:"subjects,omitempty"`
-	RoleRef  rbac.RoleRef   `json:"roleRef"`
+	RoleRef  rbac.RoleRef   `json:"roleRef,omitempty"`
 }
 
 // TempRoleBindingStatus defines the observed state of TempRoleBinding
@@ -72,6 +77,12 @@ type Condition struct {
 	Message string `json:"message,omitempty"`
 	// Type statu stype
 	Type RoleBindingStatus `json:"type"`
+}
+
+// StartStop specify when TRB is active, time format is RFC3339
+type StartStop struct {
+	From metav1.Time `json:"from,omitempty"`
+	To   metav1.Time `json:"to"`
 }
 
 //+kubebuilder:object:root=true

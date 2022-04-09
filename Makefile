@@ -128,3 +128,7 @@ GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
+
+.PHONY: open_cover
+open_cover: 
+	@go tool cover -html cover.out

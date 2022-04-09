@@ -17,10 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -60,10 +56,10 @@ var _ webhook.Validator = &TempRoleBinding{}
 func (r *TempRoleBinding) ValidateCreate() error {
 	temprolebindinglog.Info("validate create", "name", r.Name)
 
-	// validate duration
-	if _, err := time.ParseDuration(r.Spec.Duration); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("TempRoleBinding %s invalid duration", r.Name))
-	}
+	// // validate duration
+	// if _, err := time.ParseDuration(r.Spec.Duration); err != nil {
+	// 	return errors.Wrap(err, fmt.Sprintf("TempRoleBinding %s invalid duration", r.Name))
+	// }
 
 	return nil
 }

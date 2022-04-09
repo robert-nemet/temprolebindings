@@ -1,8 +1,8 @@
 apiVersion: tmprbac.rnemet.dev/v1
 kind: TempRoleBinding
 metadata:
-  name: jonh-observe-declined
-  namespace: test-kuttl
+  name: temprolebinding-sample
+  namespace: default
 status:
   conditions:
   - status: true
@@ -17,4 +17,6 @@ status:
     type: Expired
   - status: false
     type: Error
+  - status: false
+    type: Hold
   phase: Pending

@@ -7,7 +7,7 @@ status:
   conditions:
   - status: true
     type: Pending
-  - status: true
+  - status: false
     type: Declined
   - status: false
     type: Approved
@@ -17,4 +17,6 @@ status:
     type: Expired
   - status: false
     type: Error
-  phase: Declined
+  - status: false
+    type: Hold
+  phase: Pending

@@ -4,6 +4,7 @@ metadata:
   name: jonh-observe-declined
   namespace: test-kuttl
 spec:
+  approvalRequired: true
   duration: 60s
   subjects:
     - kind: User

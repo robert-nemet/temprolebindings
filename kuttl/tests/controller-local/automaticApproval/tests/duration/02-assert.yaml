@@ -1,20 +1,21 @@
 apiVersion: tmprbac.rnemet.dev/v1
 kind: TempRoleBinding
 metadata:
-  name: temprolebinding-sample
-  namespace: default
+  name: jonh-observe-duration
 status:
   conditions:
   - status: true
     type: Pending
   - status: false
     type: Declined
-  - status: false
+  - status: true
     type: Approved
-  - status: false
+  - status: true
     type: Applied
-  - status: false
+  - status: true
     type: Expired
   - status: false
     type: Error
-  phase: Pending
+  - status: false
+    type: Hold
+  phase: Expired

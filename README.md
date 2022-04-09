@@ -31,28 +31,7 @@ Install cert-manager first. Be sure that `imagePullPolicy` is `IfNotPresent`.
 
 `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.7.1/cert-manager.yaml`
 
-## Workflow
 
-* create TRB
-  * WH adds pending annotation
-  * CTRL set status PENDING if annotation is PENDING
-
-* Update TRB (annotation set to ACCEPT)
-  * validate if prev state PENDING 
-    * create RB (add labels/annotations to match TRB)
-    * annotation and status set to APPLIED
-    * queue new event
-
-* Recheck (annotation set to APPLIED)
-  * if expired 
-    * delete RB (check labels/annotations to match TRB)
-    * set annotation and status to EXPIRED
-  * not expired: requeue
-
-* Update TRB (annotation set to DENIED)
-  * validate if status id PENDING
-    * update status to DENIED
-  * else do not allow change annotation
 
 ## History
 
