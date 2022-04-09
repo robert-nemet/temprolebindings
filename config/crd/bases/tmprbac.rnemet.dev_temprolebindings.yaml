@@ -70,8 +70,6 @@ spec:
                   to:
                     format: date-time
                     type: string
-                required:
-                - to
                 type: object
               subjects:
                 description: Spec, RoleBinding specification

@@ -29,9 +29,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	tmprbacv1 "rnemet.dev/temprolebindings/api/v1"
+)
+
+const (
+	finalizerName = "trb.tmprbac.rnemet.dev/finalizer"
+)
+
+var (
+	ownerKey = ".metadata.controller.trb"
+	apiGVStr = tmprbacv1.GroupVersion.String()
 )
 
 // TempRoleBindingReconciler reconciles a TempRoleBinding object
@@ -62,12 +72,36 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	if err := r.Get(ctx, req.NamespacedName, &tempRoleBinding); err != nil {
 		log.Info("[TRB] cound not find TempRoleBinding")
-		// Do deletion in finaliser
-		// if errors.IsNotFound(err) {
-		// 	log.Info("[TempRoleBinding] TempRoleBinding is deleted, delete RoleBinding")
-		// 	return r.cleanRoleBinding(ctx, req.NamespacedName)
-		// }
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if tempRoleBinding.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&tempRoleBinding, finalizerName) {
+			controllerutil.AddFinalizer(&tempRoleBinding, finalizerName)
+			if err := r.Update(ctx, &tempRoleBinding); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(&tempRoleBinding, finalizerName) {
+			log.Info("Deleting external Resorces")
+
+			// our finalizer is present, so lets handle any external dependency
+			if err := r.deleteExternalResources(ctx, tempRoleBinding); err != nil {
+				// if fail to delete the external dependency here, return with error
+				// so that it can be retried
+				return ctrl.Result{}, err
+			}
+
+			// remove our finalizer from the list and update it.
+			controllerutil.RemoveFinalizer(&tempRoleBinding, finalizerName)
+			if err := r.Update(ctx, &tempRoleBinding); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
 	}
 
 	// calculate next status
@@ -89,8 +123,28 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TempRoleBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rbac.RoleBinding{}, ownerKey, func(rawObj client.Object) []string {
+		// grab the job object, extract the owner...
+		rb := rawObj.(*rbac.RoleBinding)
+		owner := metav1.GetControllerOf(rb)
+		if owner == nil {
+			return nil
+		}
+		// ...make sure it's a TempRoleBinding...
+		if owner.APIVersion != apiGVStr || owner.Kind != "TempRoleBinding" {
+			return nil
+		}
+
+		// ...and if so, return it
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tmprbacv1.TempRoleBinding{}).
+		Owns(&rbac.RoleBinding{}).
 		Complete(r)
 }
 
@@ -160,36 +214,13 @@ func (r *TempRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Cont
 func (r *TempRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus, next tmprbacv1.TempRoleBindingStatus) (ctrl.Result, bool, error) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
 		// delete RoleBindings
-		result, err := r.cleanRoleBinding(ctx, types.NamespacedName{Namespace: trb.Namespace, Name: trb.Name})
-		return result, true, err
+		err := r.deleteExternalResources(ctx, trb)
+		return ctrl.Result{}, true, err
 	}
 	return ctrl.Result{}, false, nil
 }
 
-func (r *TempRoleBindingReconciler) cleanRoleBinding(ctx context.Context, req types.NamespacedName) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
-	var roleBinding rbac.RoleBinding
-	err := r.Get(ctx, req, &roleBinding)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
-		log.Error(err, "[TmpRoleBinding] Error getting RoleBinding when TempRoleBinding is deleted")
-		return ctrl.Result{}, err
-	}
-	err = r.Delete(ctx, &roleBinding)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
-		log.Error(err, "[TempRoleBinding] Error deleting RoleBinding")
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
-}
-
-// setTempRoleBindingApproved
+// setTempRoleBindingApplied TODO: what is this?
 func (r *TempRoleBindingReconciler) setTempRoleBindingApplied(ctx context.Context, req tmprbacv1.TempRoleBinding) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -238,6 +269,10 @@ func (r *TempRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, tr
 		RoleRef:  trb.Spec.RoleRef,
 	}
 
+	if err := ctrl.SetControllerReference(&trb, &roleBinding, r.Scheme); err != nil {
+		return nil, err
+	}
+
 	err := r.Create(ctx, &roleBinding)
 	if err != nil {
 		log.Error(err, "[TempRoleBinding] unable to create RoleBinding")
@@ -245,4 +280,25 @@ func (r *TempRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, tr
 	}
 
 	return &duration, nil
+}
+
+func (r *TempRoleBindingReconciler) deleteExternalResources(ctx context.Context, trb tmprbacv1.TempRoleBinding) error {
+	log := log.FromContext(ctx)
+
+	var roleBindingList rbac.RoleBindingList
+	err := r.List(ctx, &roleBindingList, client.InNamespace(trb.Namespace), client.MatchingFields{ownerKey: trb.Name})
+	if err != nil {
+		log.Error(err, "[TmpRoleBinding] Error getting RoleBindings when TempRoleBinding is deleted")
+		return err
+	}
+
+	for _, rb := range roleBindingList.Items {
+		log.Info("[TmpRoleBinding] Deleting RoleBinding " + rb.Name)
+		err = r.Delete(ctx, &rb)
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, fmt.Sprintf("[TempRoleBinding] Error deleting RoleBinding for name: %s, namespace: %s", trb.Name, trb.Namespace))
+			return err
+		}
+	}
+	return nil
 }

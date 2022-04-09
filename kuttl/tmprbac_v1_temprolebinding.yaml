@@ -3,7 +3,7 @@ kind: TempRoleBinding
 metadata:
   name: temprolebinding-sample
 spec:
-  duration: 60s
+  duration: 15s
   subjects:
     - kind: User
       name: john
@@ -12,3 +12,4 @@ spec:
     kind: Role
     name: observer
     apiGroup: rbac.authorization.k8s.io
+

@@ -82,7 +82,7 @@ type Condition struct {
 // StartStop specify when TRB is active, time format is RFC3339
 type StartStop struct {
 	From metav1.Time `json:"from,omitempty"`
-	To   metav1.Time `json:"to"`
+	To   metav1.Time `json:"to,omitempty"`
 }
 
 //+kubebuilder:object:root=true
