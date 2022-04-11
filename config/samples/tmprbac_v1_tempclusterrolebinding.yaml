@@ -1,0 +1,6 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempClusterRoleBinding
+metadata:
+  name: tempclusterrolebinding-sample
+spec:
+  # TODO(user): Add fields here

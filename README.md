@@ -37,8 +37,9 @@ Install cert-manager first. Be sure that `imagePullPolicy` is `IfNotPresent`.
 
 * create project
     `kubebuilder init --domain rnemet.dev --repo rnemet.dev/temprolebindings --plugins go/v3 --project-version 3`
-* init api: TempRoleBinding
-    `kubebuilder create api --group tmprbac --version v1 --kind TempRoleBinding`
+* init api:
+  * TempRoleBinding `kubebuilder create api --group tmprbac --version v1 --kind TempRoleBinding`
+  * TempClusterRoleBinding `kubebuilder create api --group tmprbac --version v1 --kind TempClusterRoleBinding`
 * init webhook:
     `kubebuilder create webhook --group tmprbac --version v1 --kind TempRoleBinding --defaulting --programmatic-validation`
 
