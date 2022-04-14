@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,33 +24,12 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // TempClusterRoleBindingSpec defines the desired state of TempClusterRoleBinding
-type TempClusterRoleBindingSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// ApprovalRequired, flag if approval is required
-	ApprovalRequired bool `json:"approvalRequired,omitempty"`
-	// Duration, duration of RoleBinding from the moment of creation
-	Duration metav1.Duration `json:"duration,omitempty"`
-	// StartStop, defines when TempRoleBinding is applied and when expires
-	StartStop StartStop `json:"startStop,omitempty"`
-	// Spec, RoleBinding specification
-	Subjects []rbac.Subject `json:"subjects,omitempty"`
-	RoleRef  rbac.RoleRef   `json:"roleRef,omitempty"`
-}
+type TempClusterRoleBindingSpec BaseSpec
 
 // TempClusterRoleBindingStatus defines the observed state of TempClusterRoleBinding
-type TempClusterRoleBindingStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+type TempClusterRoleBindingStatus BaseStatus
 
-	// Conditions, transition list of an object
-	// +optional
-	Conditions []Condition `json:"conditions,omitempty"`
-	// Phase, the latest phase, final state of object
-	Phase RoleBindingStatus `json:"phase,omitempty"`
-}
-
+//+kubebuilder:resource:scope=Cluster
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

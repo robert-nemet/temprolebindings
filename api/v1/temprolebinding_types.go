@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,32 +39,10 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // TempRoleBindingSpec defines the desired state of TempRoleBinding
-type TempRoleBindingSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// ApprovalRequired, flag if approval is required
-	ApprovalRequired bool `json:"approvalRequired,omitempty"`
-	// Duration, duration of RoleBinding from the moment of creation
-	Duration metav1.Duration `json:"duration,omitempty"`
-	// StartStop, defines when TempRoleBinding is applied and when expires
-	StartStop StartStop `json:"startStop,omitempty"`
-	// Spec, RoleBinding specification
-	Subjects []rbac.Subject `json:"subjects,omitempty"`
-	RoleRef  rbac.RoleRef   `json:"roleRef,omitempty"`
-}
+type TempRoleBindingSpec BaseSpec
 
 // TempRoleBindingStatus defines the observed state of TempRoleBinding
-type TempRoleBindingStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Conditions, transition list of an object
-	// +optional
-	Conditions []Condition `json:"conditions,omitempty"`
-	// Phase, the latest phase, final state of object
-	Phase RoleBindingStatus `json:"phase,omitempty"`
-}
+type TempRoleBindingStatus BaseStatus
 
 // Condition is definition of object status
 type Condition struct {

@@ -34,6 +34,14 @@ import (
 	tmprbacv1 "rnemet.dev/temprolebindings/api/v1"
 )
 
+const (
+	finalizerNameCluster = "trb.tmprbac.rnemet.dev/finalizer"
+)
+
+var (
+	ownerKeyCluster = ".metadata.controller.trb"
+)
+
 // TempClusterRoleBindingReconciler reconciles a TempClusterRoleBinding object
 type TempClusterRoleBindingReconciler struct {
 	client.Client
@@ -66,14 +74,14 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	if tempClusterRoleBinding.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerName) {
-			controllerutil.AddFinalizer(&tempClusterRoleBinding, finalizerName)
+		if !controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerNameCluster) {
+			controllerutil.AddFinalizer(&tempClusterRoleBinding, finalizerNameCluster)
 			if err := r.Update(ctx, &tempClusterRoleBinding); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		if controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerName) {
+		if controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerNameCluster) {
 			log.Info("Deleting external Resorces")
 
 			// our finalizer is present, so lets handle any external dependency
@@ -84,7 +92,7 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(&tempClusterRoleBinding, finalizerName)
+			controllerutil.RemoveFinalizer(&tempClusterRoleBinding, finalizerNameCluster)
 			if err := r.Update(ctx, &tempClusterRoleBinding); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -113,7 +121,7 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TempClusterRoleBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rbac.ClusterRoleBinding{}, ownerKey, func(rawObj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rbac.ClusterRoleBinding{}, ownerKeyCluster, func(rawObj client.Object) []string {
 		// grab the job object, extract the owner...
 		rb := rawObj.(*rbac.ClusterRoleBinding)
 		owner := metav1.GetControllerOf(rb)
@@ -159,7 +167,7 @@ func (r *TempClusterRoleBindingReconciler) deleteExternalResources(ctx context.C
 }
 
 // executeTransition execute transition from one to another status
-func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.TempClusterRoleBindingStatus, next tmprbacv1.TempClusterRoleBindingStatus) (ctrl.Result, error) {
+func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, error) {
 
 	log := log.FromContext(ctx)
 	log.Info(fmt.Sprintf("[TRB] Executing transaction from %s to %s", status.Phase, next.Phase))
@@ -169,12 +177,12 @@ func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context
 		return ctrl.Result{}, nil
 	}
 
-	result, ok := switchFromPendingToApprovedCluster(tcrb, status, next)
+	result, ok := switchFromPendingToApproved(status, next)
 	if ok {
 		return result, nil
 	}
 
-	result, ok = switchFromPendingToDeclinedCluster(tcrb, status, next)
+	result, ok = switchFromPendingToDeclined(status, next)
 	if ok {
 		return result, nil
 	}
@@ -184,7 +192,7 @@ func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context
 		return result, err
 	}
 
-	result, ok = switchFromApprovedToHoldCluster(tcrb, status, next)
+	result, ok = switchFromApprovedToHold(status, next)
 	if ok {
 		return result, nil
 	}
@@ -198,12 +206,12 @@ func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context
 }
 
 // reconcileStatus save TempRoleBindingStatus
-func (r *TempClusterRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.TempClusterRoleBindingStatus) error {
+func (r *TempClusterRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus) error {
 	log := log.FromContext(ctx)
 	if trb.Status.Phase != status.Phase {
 		log.Info("Status phases are different saving status")
 		oldPhase := trb.Status.Phase
-		trb.Status = status
+		trb.Status = tmprbacv1.TempClusterRoleBindingStatus(status)
 		if err := r.Status().Update(ctx, &trb); err != nil {
 			log.Error(err, fmt.Sprintf("[TRB] error updating TempRoleBinding status from %s to %v", oldPhase, status))
 			return err
@@ -212,7 +220,7 @@ func (r *TempClusterRoleBindingReconciler) reconcileStatus(ctx context.Context, 
 	return nil
 }
 
-func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.TempClusterRoleBindingStatus, next tmprbacv1.TempClusterRoleBindingStatus) (ctrl.Result, bool, error) {
+func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
 		// delete RoleBindings
 		err := r.deleteExternalResources(ctx, trb)
@@ -221,7 +229,7 @@ func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx contex
 	return ctrl.Result{}, false, nil
 }
 
-func (r *TempClusterRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.TempClusterRoleBindingStatus, next tmprbacv1.TempClusterRoleBindingStatus) (ctrl.Result, bool, error) {
+func (r *TempClusterRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApproved && next.Phase == tmprbacv1.TempRoleBindingStatusApplied {
 		// create new role bindings
 		result, err := r.setTempRoleBindingApplied(ctx, trb)

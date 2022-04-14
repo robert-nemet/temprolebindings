@@ -13,7 +13,7 @@ spec:
     listKind: TempClusterRoleBindingList
     plural: tempclusterrolebindings
     singular: tempclusterrolebinding
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1
     schema:
