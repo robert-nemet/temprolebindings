@@ -86,16 +86,7 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		if controllerutil.ContainsFinalizer(&tempRoleBinding, finalizerName) {
 			log.Info("Deleting external Resorces")
 
-			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteExternalResources(ctx, tempRoleBinding); err != nil {
-				// if fail to delete the external dependency here, return with error
-				// so that it can be retried
-				return ctrl.Result{}, err
-			}
-
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(&tempRoleBinding, finalizerName)
-			if err := r.Update(ctx, &tempRoleBinding); err != nil {
+			if err := r.finalizeExternalResources(ctx, tempRoleBinding, finalizerName); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -109,7 +100,7 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// excute translation to next status
 	result, err := r.executeTransition(ctx, tempRoleBinding, currentStatus, nextStatus)
 	if err != nil {
-		log.Error(err, "[TRB] cound not find TempRoleBinding")
+		log.Error(err, "[TRB] cound not execute transition")
 		return ctrl.Result{}, err
 	}
 	// save status
@@ -119,6 +110,22 @@ func (r *TempRoleBindingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	return result, nil
+}
+
+func (r *TempRoleBindingReconciler) finalizeExternalResources(ctx context.Context, trb tmprbacv1.TempRoleBinding, fn string) error {
+	// our finalizer is present, so lets handle any external dependency
+	if err := r.deleteExternalResources(ctx, trb); err != nil {
+		// if fail to delete the external dependency here, return with error
+		// so that it can be retried
+		return err
+	}
+
+	// remove our finalizer from the list and update it.
+	controllerutil.RemoveFinalizer(&trb, fn)
+	if err := r.Update(ctx, &trb); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -152,7 +159,7 @@ func (r *TempRoleBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *TempRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.TempRoleBindingStatus) error {
 	log := log.FromContext(ctx)
 	if trb.Status.Phase != status.Phase {
-		log.Info("Status phases are different saving status")
+		log.Info(fmt.Sprintf("[TRB] Status phases are different saving status %s -> %s", trb.Status.Phase, status.Phase))
 		oldPhase := trb.Status.Phase
 		trb.Status = status
 		if err := r.Status().Update(ctx, &trb); err != nil {
@@ -212,7 +219,9 @@ func (r *TempRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Cont
 }
 
 func (r *TempRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
+	log := log.FromContext(ctx)
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
+		log.Info("[TRB] Transition confirmed Applied -> Expired")
 		// delete RoleBindings
 		err := r.deleteExternalResources(ctx, trb)
 		return ctrl.Result{}, true, err
@@ -224,31 +233,24 @@ func (r *TempRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Conte
 func (r *TempRoleBindingReconciler) setTempRoleBindingApplied(ctx context.Context, req tmprbacv1.TempRoleBinding) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	log.Info(fmt.Sprintf("[TempRoleBinding] approved Name %s Namespace %s", req.Name, req.Namespace))
+	log.Info(fmt.Sprintf("approved RoleBinding Name %s in  Namespace %s", req.Name, req.Namespace))
 
-	// Gate when status is changed
-	if req.Status.Phase != tmprbacv1.TempRoleBindingStatusApproved {
-		return ctrl.Result{}, nil
-	}
-
-	log.Info("[TempRoleBonding] Creating RobeBinding")
 	var roleBinding rbac.RoleBinding
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Namespace}, &roleBinding)
 	if err != nil && errors.IsNotFound(err) {
 		// Making new RoleBinding
-		log.Info(fmt.Sprintf("[TempRoleBindig] RoleBindig do not exist, create one: %v", req.Name))
+		log.Info(fmt.Sprintf("RoleBindig do not exist, create one: %v", req.Name))
 
 		reschedule, err := r.reconcileRoleBinding(ctx, req)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		log.Info("[TempRoleBonding] RoleBinding ->Applied")
 		return ctrl.Result{RequeueAfter: *reschedule}, nil
 	}
 
 	if err != nil {
-		log.Error(err, "[TempRoleBonding] Approved but can not create RoleBinding")
+		log.Error(err, "[TRB] Approved but can not create RoleBinding")
 	}
 	return ctrl.Result{}, err
 }
@@ -258,7 +260,7 @@ func (r *TempRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, tr
 	log := log.FromContext(ctx)
 	duration := trb.Spec.Duration.Duration
 
-	roleBinding := rbac.RoleBinding{
+	rb := rbac.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        trb.Name,
 			Namespace:   trb.Namespace,
@@ -269,12 +271,12 @@ func (r *TempRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, tr
 		RoleRef:  trb.Spec.RoleRef,
 	}
 
-	if err := ctrl.SetControllerReference(&trb, &roleBinding, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(&trb, &rb, r.Scheme); err != nil {
 		return nil, err
 	}
 
-	err := r.Create(ctx, &roleBinding)
-	if err != nil {
+	err := r.Create(ctx, &rb)
+	if err != nil && !errors.IsAlreadyExists(err) {
 		log.Error(err, "[TempRoleBinding] unable to create RoleBinding")
 		return nil, err
 	}
@@ -288,15 +290,16 @@ func (r *TempRoleBindingReconciler) deleteExternalResources(ctx context.Context,
 	var roleBindingList rbac.RoleBindingList
 	err := r.List(ctx, &roleBindingList, client.InNamespace(trb.Namespace), client.MatchingFields{ownerKey: trb.Name})
 	if err != nil {
-		log.Error(err, "[TmpRoleBinding] Error getting RoleBindings when TempRoleBinding is deleted")
+		log.Info(fmt.Sprintf("%v", err))
+		log.Error(err, "[TRB] Error getting RoleBindings when TempRoleBinding is deleted")
 		return err
 	}
 
 	for _, rb := range roleBindingList.Items {
-		log.Info("[TmpRoleBinding] Deleting RoleBinding " + rb.Name)
+		log.Info("[TRB] Deleting RoleBinding " + rb.Name)
 		err = r.Delete(ctx, &rb)
 		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, fmt.Sprintf("[TempRoleBinding] Error deleting RoleBinding for name: %s, namespace: %s", trb.Name, trb.Namespace))
+			log.Error(err, fmt.Sprintf("[TRB] Error deleting RoleBinding for name: %s, namespace: %s", trb.Name, trb.Namespace))
 			return err
 		}
 	}

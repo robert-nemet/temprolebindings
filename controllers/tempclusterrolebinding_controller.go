@@ -35,11 +35,11 @@ import (
 )
 
 const (
-	finalizerNameCluster = "trb.tmprbac.rnemet.dev/finalizer"
+	finalizerNameCluster = "tcrb.tmprbac.rnemet.dev/finalizer"
 )
 
 var (
-	ownerKeyCluster = ".metadata.controller.trb"
+	ownerKeyCluster = ".metadata.controller.tcrb"
 )
 
 // TempClusterRoleBindingReconciler reconciles a TempClusterRoleBinding object
@@ -69,7 +69,7 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 	var tempClusterRoleBinding tmprbacv1.TempClusterRoleBinding
 
 	if err := r.Get(ctx, req.NamespacedName, &tempClusterRoleBinding); err != nil {
-		log.Info("[TRB] cound not find TempRoleBinding")
+		log.Info("[TCRB] cound not find TempClusterRoleBinding")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -107,12 +107,12 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 	// excute translation to next status
 	result, err := r.executeTransition(ctx, tempClusterRoleBinding, currentStatus, nextStatus)
 	if err != nil {
-		log.Error(err, "[TRB] cound not find TempRoleBinding")
+		log.Error(err, "[TCRB] cound not find TempClusterRoleBinding")
 		return ctrl.Result{}, err
 	}
 	// save status
 	if err := r.reconcileStatus(ctx, tempClusterRoleBinding, nextStatus); err != nil {
-		log.Error(err, "[TRB] cound not save Status")
+		log.Error(err, "[TCRB] cound not save Status")
 		return ctrl.Result{}, err
 	}
 
@@ -145,35 +145,14 @@ func (r *TempClusterRoleBindingReconciler) SetupWithManager(mgr ctrl.Manager) er
 		Complete(r)
 }
 
-func (r *TempClusterRoleBindingReconciler) deleteExternalResources(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding) error {
-	log := log.FromContext(ctx)
-
-	var roleBindingList rbac.ClusterRoleBindingList
-	err := r.List(ctx, &roleBindingList, client.InNamespace("*"), client.MatchingFields{ownerKey: tcrb.Name})
-	if err != nil {
-		log.Error(err, "[TmpClusterRoleBinding] Error getting ClusterRoleBindings when TempClusterRoleBinding is deleted")
-		return err
-	}
-
-	for _, rb := range roleBindingList.Items {
-		log.Info("[TmpClusterRoleBinding] Deleting ClusterRoleBinding " + rb.Name)
-		err = r.Delete(ctx, &rb)
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, fmt.Sprintf("[TempClusterRoleBinding] Error deleting ClusterRoleBinding for name: %s", tcrb.Name))
-			return err
-		}
-	}
-	return nil
-}
-
 // executeTransition execute transition from one to another status
 func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, error) {
 
 	log := log.FromContext(ctx)
-	log.Info(fmt.Sprintf("[TRB] Executing transaction from %s to %s", status.Phase, next.Phase))
+	log.Info(fmt.Sprintf("[TCRB] Executing transaction from %s to %s", status.Phase, next.Phase))
 	// nothing happen
 	if status.Phase == next.Phase {
-		log.Info("[TRB] Current and next Phase are the same. No Transition.")
+		log.Info("[TCRB] Current and next Phase are the same. No Transition.")
 		return ctrl.Result{}, nil
 	}
 
@@ -209,21 +188,21 @@ func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context
 func (r *TempClusterRoleBindingReconciler) reconcileStatus(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus) error {
 	log := log.FromContext(ctx)
 	if trb.Status.Phase != status.Phase {
-		log.Info("Status phases are different saving status")
+		log.Info(fmt.Sprintf("Status phases are different saving status %s -> %s", trb.Status.Phase, status.Phase))
 		oldPhase := trb.Status.Phase
 		trb.Status = tmprbacv1.TempClusterRoleBindingStatus(status)
 		if err := r.Status().Update(ctx, &trb); err != nil {
-			log.Error(err, fmt.Sprintf("[TRB] error updating TempRoleBinding status from %s to %v", oldPhase, status))
+			log.Error(err, fmt.Sprintf("[TCRB] error updating TempRoleBinding status from %s to %v", oldPhase, status))
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
+func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
 		// delete RoleBindings
-		err := r.deleteExternalResources(ctx, trb)
+		err := r.deleteExternalResources(ctx, tcrb)
 		return ctrl.Result{}, true, err
 	}
 	return ctrl.Result{}, false, nil
@@ -232,70 +211,83 @@ func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx contex
 func (r *TempClusterRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApproved && next.Phase == tmprbacv1.TempRoleBindingStatusApplied {
 		// create new role bindings
-		result, err := r.setTempRoleBindingApplied(ctx, trb)
+		result, err := r.setTempClusterRoleBindingApplied(ctx, trb)
 		return result, true, err
 	}
 	return ctrl.Result{}, false, nil
 }
 
-// setTempRoleBindingApplied TODO: what is this?
-func (r *TempClusterRoleBindingReconciler) setTempRoleBindingApplied(ctx context.Context, req tmprbacv1.TempClusterRoleBinding) (ctrl.Result, error) {
+// setTempClusterRoleBindingApplied TODO: what is this?
+func (r *TempClusterRoleBindingReconciler) setTempClusterRoleBindingApplied(ctx context.Context, req tmprbacv1.TempClusterRoleBinding) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	log.Info(fmt.Sprintf("[TempRoleBinding] approved Name %s Namespace %s", req.Name, req.Namespace))
+	log.Info(fmt.Sprintf("approved ClusterRoleBinding Name %s", req.Name))
 
-	// Gate when status is changed
-	if req.Status.Phase != tmprbacv1.TempRoleBindingStatusApproved {
-		return ctrl.Result{}, nil
-	}
-
-	log.Info("[TempRoleBonding] Creating RobeBinding")
-	var roleBinding rbac.RoleBinding
-	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Namespace}, &roleBinding)
+	var rb rbac.ClusterRoleBinding
+	err := r.Get(ctx, types.NamespacedName{Name: req.Namespace}, &rb)
 	if err != nil && errors.IsNotFound(err) {
-		// Making new RoleBinding
-		log.Info(fmt.Sprintf("[TempRoleBindig] RoleBindig do not exist, create one: %v", req.Name))
+		// Making new ClusterRoleBinding
+		log.Info(fmt.Sprintf("CLusterRoleBindig do not exist, create one: %v", req.Name))
 
-		reschedule, err := r.reconcileRoleBinding(ctx, req)
+		reschedule, err := r.reconcileClusterRoleBinding(ctx, req)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		log.Info("[TempRoleBonding] RoleBinding ->Applied")
 		return ctrl.Result{RequeueAfter: *reschedule}, nil
 	}
 
 	if err != nil {
-		log.Error(err, "[TempRoleBonding] Approved but can not create RoleBinding")
+		log.Error(err, "Approved but can not create ClusterRoleBinding")
 	}
 	return ctrl.Result{}, err
 }
 
 // reconcileRoleBinding prepare RoleBinding and duration
-func (r *TempClusterRoleBindingReconciler) reconcileRoleBinding(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding) (*time.Duration, error) {
+func (r *TempClusterRoleBindingReconciler) reconcileClusterRoleBinding(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding) (*time.Duration, error) {
 	log := log.FromContext(ctx)
-	duration := trb.Spec.Duration.Duration
+	duration := tcrb.Spec.Duration.Duration
 
-	roleBinding := rbac.ClusterRoleBinding{
+	crb := rbac.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        trb.Name,
-			Namespace:   trb.Namespace,
-			Labels:      trb.Labels,
-			Annotations: trb.Annotations,
+			Name:        tcrb.Name,
+			Labels:      tcrb.Labels,
+			Annotations: tcrb.Annotations,
 		},
-		Subjects: trb.Spec.Subjects,
-		RoleRef:  trb.Spec.RoleRef,
+		Subjects: tcrb.Spec.Subjects,
+		RoleRef:  tcrb.Spec.RoleRef,
 	}
 
-	if err := ctrl.SetControllerReference(&trb, &roleBinding, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(&tcrb, &crb, r.Scheme); err != nil {
 		return nil, err
 	}
 
-	err := r.Create(ctx, &roleBinding)
-	if err != nil {
-		log.Error(err, "[TempRoleBinding] unable to create ClusterRoleBinding")
+	err := r.Create(ctx, &crb)
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Error(err, "unable to create ClusterRoleBinding")
 		return nil, err
 	}
 
 	return &duration, nil
+}
+
+func (r *TempClusterRoleBindingReconciler) deleteExternalResources(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding) error {
+	log := log.FromContext(ctx)
+
+	var bindingList rbac.ClusterRoleBindingList
+	err := r.List(ctx, &bindingList, client.MatchingFields{ownerKeyCluster: tcrb.Name})
+	if err != nil {
+		log.Error(err, "Error getting ClusterRoleBindings when TempClusterRoleBinding is deleted")
+		return err
+	}
+
+	for _, crb := range bindingList.Items {
+		log.Info("[TmpClusterRoleBinding] Deleting ClusterRoleBinding " + crb.Name)
+		err = r.Delete(ctx, &crb)
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, fmt.Sprintf("[TempClusterRoleBinding] Error deleting ClusterRoleBinding for name: %s", tcrb.Name))
+			return err
+		}
+	}
+	return nil
 }

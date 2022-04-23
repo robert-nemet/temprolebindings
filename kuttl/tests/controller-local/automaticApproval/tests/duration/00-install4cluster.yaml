@@ -1,7 +1,7 @@
 apiVersion: tmprbac.rnemet.dev/v1
 kind: TempClusterRoleBinding
 metadata:
-  name: tempclusterrolebinding-sample
+  name: jonh-observe-duration
 spec:
   duration: 60s
   subjects:
@@ -9,6 +9,7 @@ spec:
       name: john
       apiGroup: rbac.authorization.k8s.io
   roleRef:
-    kind: Role
+    kind: ClusterRole
     name: observer
     apiGroup: rbac.authorization.k8s.io
+
