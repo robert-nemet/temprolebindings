@@ -23,13 +23,14 @@ import (
 type RoleBindingStatus string
 
 const (
-	TempRoleBindingStatusPending  RoleBindingStatus = "Pending"
-	TempRoleBindingStatusApproved RoleBindingStatus = "Approved"
-	TempRoleBindingStatusHold     RoleBindingStatus = "Hold"
-	TempRoleBindingStatusApplied  RoleBindingStatus = "Applied"
-	TempRoleBindingStatusExpired  RoleBindingStatus = "Expired"
-	TempRoleBindingStatusDeclined RoleBindingStatus = "Declined"
-	TempRoleBindingStatusError    RoleBindingStatus = "Error"
+	TempRoleBindingStatusPending    RoleBindingStatus = "Pending"
+	TempRoleBindingStatusApproved   RoleBindingStatus = "Approved"
+	TempRoleBindingStatusHold       RoleBindingStatus = "Hold"
+	TempRoleBindingStatusApplied    RoleBindingStatus = "Applied"
+	TempRoleBindingStatusExpired    RoleBindingStatus = "Expired"
+	TempRoleBindingStatusDeclined   RoleBindingStatus = "Declined"
+	TempRoleBindingStatusError      RoleBindingStatus = "Error"
+	TempRoleBindingStatusNotDefined RoleBindingStatus = "NotDefined"
 
 	VersionAnnotation = "tmprbac/version"
 	StatusAnnotation  = "tmprbac/status"

@@ -13,8 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package controllers
+package base
 
 import (
 	"time"
@@ -24,11 +23,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-func isPhaseSet(t tmprbacv1.BaseStatus) bool {
+func IsPhaseSet(t tmprbacv1.BaseStatus) bool {
 	return len(t.Phase) > 0
 }
 
-func makeDefaultStatus() tmprbacv1.BaseStatus {
+func MakeDefaultStatus() tmprbacv1.BaseStatus {
 	return tmprbacv1.BaseStatus{
 		Conditions: []tmprbacv1.Condition{
 			{
@@ -66,7 +65,7 @@ func makeDefaultStatus() tmprbacv1.BaseStatus {
 }
 
 // newStatus, make new status
-func newStatus(currentStatus tmprbacv1.BaseStatus, next tmprbacv1.RoleBindingStatus) tmprbacv1.BaseStatus {
+func NewStatus(currentStatus tmprbacv1.BaseStatus, next tmprbacv1.RoleBindingStatus) tmprbacv1.BaseStatus {
 	for i, v := range currentStatus.Conditions {
 		if v.Type == next {
 			currentStatus.Conditions[i].Status = true
@@ -79,37 +78,44 @@ func newStatus(currentStatus tmprbacv1.BaseStatus, next tmprbacv1.RoleBindingSta
 }
 
 // calculateCurrentStatus for TempRoleBindingStatus
-func calculateCurrentStatus(status tmprbacv1.BaseStatus) tmprbacv1.BaseStatus {
-	if isPhaseSet(status) {
+func CalculateCurrentStatus(status tmprbacv1.BaseStatus) tmprbacv1.BaseStatus {
+	if IsPhaseSet(status) {
 		return status
 	}
-	return makeDefaultStatus()
+	return MakeDefaultStatus()
 }
 
 // switchFromPendingToDeclined execute transation from Pending to Declined
-func switchFromPendingToDeclined(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
+func SwitchFromPendingToDeclined(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusPending && next.Phase == tmprbacv1.TempRoleBindingStatusDeclined {
 		return ctrl.Result{}, true
 	}
 	return ctrl.Result{}, false
 }
 
-func switchFromPendingToApproved(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
+func SwitchFromPendingToApproved(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusPending && next.Phase == tmprbacv1.TempRoleBindingStatusApproved {
 		return ctrl.Result{}, true
 	}
 	return ctrl.Result{}, false
 }
 
-func switchFromApprovedToHold(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
+func SwitchFromApprovedToHold(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
 	if status.Phase == tmprbacv1.TempRoleBindingStatusApproved && next.Phase == tmprbacv1.TempRoleBindingStatusHold {
 		return ctrl.Result{}, true
 	}
 	return ctrl.Result{}, false
 }
 
+func SwitchFromAppliedToExpired(status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool) {
+	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
+		return ctrl.Result{}, true
+	}
+	return ctrl.Result{}, false
+}
+
 // holdOrApply, decide to hold or apply
-func holdOrApply(spec tmprbacv1.BaseSpec) tmprbacv1.RoleBindingStatus {
+func HoldOrApply(spec tmprbacv1.BaseSpec) tmprbacv1.RoleBindingStatus {
 	if (spec.Duration == metav1.Duration{}) && metav1.Now().Local().Before(spec.StartStop.From.Time) {
 		return tmprbacv1.TempRoleBindingStatusHold
 	}
@@ -117,7 +123,7 @@ func holdOrApply(spec tmprbacv1.BaseSpec) tmprbacv1.RoleBindingStatus {
 }
 
 // isTempTempRoleBindingExpired validates expiration
-func isTempTempRoleBindingExpired(spec tmprbacv1.BaseSpec, status tmprbacv1.BaseStatus) bool {
+func IsTempTempRoleBindingExpired(spec tmprbacv1.BaseSpec, status tmprbacv1.BaseStatus) bool {
 
 	if status.Phase != tmprbacv1.TempRoleBindingStatusApplied {
 		return false
@@ -133,4 +139,49 @@ func isTempTempRoleBindingExpired(spec tmprbacv1.BaseSpec, status tmprbacv1.Base
 		return false
 	}
 	return metav1.Now().After(spec.StartStop.To.Time)
+}
+
+func IsApprovalRequired(annotations map[string]string) bool {
+	_, ok := annotations[tmprbacv1.StatusAnnotation]
+	return ok
+}
+
+func GetStatusFromAnnotations(annotations map[string]string) tmprbacv1.RoleBindingStatus {
+	status, ok := annotations[tmprbacv1.StatusAnnotation]
+	if ok {
+		return tmprbacv1.RoleBindingStatus(status)
+	}
+	return tmprbacv1.TempRoleBindingStatusNotDefined
+}
+
+// GetCurrentAndNextStatus ...
+func GetCurrentAndNextStatus(status tmprbacv1.BaseStatus, annotations map[string]string, spec tmprbacv1.BaseSpec) (currentStatus tmprbacv1.BaseStatus, nextStatus tmprbacv1.BaseStatus) {
+	currentStatus = CalculateCurrentStatus(status)
+
+	switch currentStatus.Phase {
+	case tmprbacv1.TempRoleBindingStatusPending:
+		if spec.ApprovalRequired {
+			if IsApprovalRequired(annotations) {
+				// set one from annotation
+				next := GetStatusFromAnnotations(annotations)
+				return currentStatus, NewStatus(currentStatus, next)
+			}
+			// status not updated by annotation
+			return currentStatus, currentStatus
+		}
+		return currentStatus, NewStatus(currentStatus, tmprbacv1.TempRoleBindingStatusApproved)
+	case tmprbacv1.TempRoleBindingStatusHold:
+		next := HoldOrApply(spec)
+		return currentStatus, NewStatus(currentStatus, next)
+	case tmprbacv1.TempRoleBindingStatusApproved:
+		next := HoldOrApply(spec)
+		return currentStatus, NewStatus(currentStatus, next)
+	case tmprbacv1.TempRoleBindingStatusApplied:
+		if IsTempTempRoleBindingExpired(spec, status) {
+			return currentStatus, NewStatus(currentStatus, tmprbacv1.TempRoleBindingStatusExpired)
+		}
+		return currentStatus, currentStatus
+	default: // tmprbacv1.TempRoleBindingStatusExpired | tmprbacv1.TempRoleBindingStatusDeclined
+		return currentStatus, currentStatus
+	}
 }

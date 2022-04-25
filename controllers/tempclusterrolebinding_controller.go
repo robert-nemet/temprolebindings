@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	tmprbacv1 "rnemet.dev/temprolebindings/api/v1"
+	"rnemet.dev/temprolebindings/base"
 )
 
 const (
@@ -69,16 +70,13 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 	var tempClusterRoleBinding tmprbacv1.TempClusterRoleBinding
 
 	if err := r.Get(ctx, req.NamespacedName, &tempClusterRoleBinding); err != nil {
-		log.Info("[TCRB] cound not find TempClusterRoleBinding")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if tempClusterRoleBinding.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerNameCluster) {
 			controllerutil.AddFinalizer(&tempClusterRoleBinding, finalizerNameCluster)
-			if err := r.Update(ctx, &tempClusterRoleBinding); err != nil {
-				return ctrl.Result{}, err
-			}
+			return ctrl.Result{}, r.Update(ctx, &tempClusterRoleBinding)
 		}
 	} else {
 		if controllerutil.ContainsFinalizer(&tempClusterRoleBinding, finalizerNameCluster) {
@@ -103,7 +101,7 @@ func (r *TempClusterRoleBindingReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	// calculate next status
-	currentStatus, nextStatus := calculateNextStatusCluster(tempClusterRoleBinding)
+	currentStatus, nextStatus := base.GetCurrentAndNextStatus(tempClusterRoleBinding.Status.ToBaseStatus(), tempClusterRoleBinding.Annotations, tmprbacv1.BaseSpec(tempClusterRoleBinding.Spec))
 	// excute translation to next status
 	result, err := r.executeTransition(ctx, tempClusterRoleBinding, currentStatus, nextStatus)
 	if err != nil {
@@ -153,30 +151,34 @@ func (r *TempClusterRoleBindingReconciler) executeTransition(ctx context.Context
 	// nothing happen
 	if status.Phase == next.Phase {
 		log.Info("[TCRB] Current and next Phase are the same. No Transition.")
+		if status.Phase == tmprbacv1.TempRoleBindingStatusExpired {
+			log.Info("Exired. Deleting external resorces")
+			return ctrl.Result{}, r.deleteExternalResources(ctx, tcrb)
+		}
 		return ctrl.Result{}, nil
 	}
 
-	result, ok := switchFromPendingToApproved(status, next)
+	result, ok := base.SwitchFromPendingToApproved(status, next)
 	if ok {
 		return result, nil
 	}
 
-	result, ok = switchFromPendingToDeclined(status, next)
+	result, ok = base.SwitchFromPendingToDeclined(status, next)
 	if ok {
 		return result, nil
 	}
 
-	result, ok, err := r.switchFromAppliedToExpired(ctx, tcrb, status, next)
-	if ok {
-		return result, err
-	}
-
-	result, ok = switchFromApprovedToHold(status, next)
+	result, ok = base.SwitchFromAppliedToExpired(status, next)
 	if ok {
 		return result, nil
 	}
 
-	result, ok, err = r.switchFromApprovedToApplied(ctx, tcrb, status, next)
+	result, ok = base.SwitchFromApprovedToHold(status, next)
+	if ok {
+		return result, nil
+	}
+
+	result, ok, err := r.switchFromApprovedToApplied(ctx, tcrb, status, next)
 	if ok {
 		return result, err
 	}
@@ -197,15 +199,6 @@ func (r *TempClusterRoleBindingReconciler) reconcileStatus(ctx context.Context, 
 		}
 	}
 	return nil
-}
-
-func (r *TempClusterRoleBindingReconciler) switchFromAppliedToExpired(ctx context.Context, tcrb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
-	if status.Phase == tmprbacv1.TempRoleBindingStatusApplied && next.Phase == tmprbacv1.TempRoleBindingStatusExpired {
-		// delete RoleBindings
-		err := r.deleteExternalResources(ctx, tcrb)
-		return ctrl.Result{}, true, err
-	}
-	return ctrl.Result{}, false, nil
 }
 
 func (r *TempClusterRoleBindingReconciler) switchFromApprovedToApplied(ctx context.Context, trb tmprbacv1.TempClusterRoleBinding, status tmprbacv1.BaseStatus, next tmprbacv1.BaseStatus) (ctrl.Result, bool, error) {
