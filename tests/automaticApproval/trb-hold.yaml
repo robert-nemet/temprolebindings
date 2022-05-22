@@ -1,0 +1,17 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempRoleBinding
+metadata:
+  name: jonh-observe-hold
+spec:
+  startStop:
+    from: "2025-05-03T15:00:50.52Z"
+    to: "2025-05-03T15:18:00.52Z"
+  subjects:
+    - kind: User
+      name: john
+      apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: observer
+    apiGroup: rbac.authorization.k8s.io
+

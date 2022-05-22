@@ -1,0 +1,21 @@
+apiVersion: tmprbac.rnemet.dev/v1
+kind: TempClusterRoleBinding
+metadata:
+  name: jonh-observe-duration
+status:
+  conditions:
+  - status: true
+    type: Pending
+  - status: false
+    type: Declined
+  - status: true
+    type: Approved
+  - status: true
+    type: Applied
+  - status: true
+    type: Expired
+  - status: false
+    type: Error
+  - status: false
+    type: Hold
+  phase: Expired
