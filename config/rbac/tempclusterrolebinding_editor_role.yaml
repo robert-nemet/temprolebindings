@@ -1,0 +1,24 @@
+# permissions for end users to edit tempclusterrolebindings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tempclusterrolebinding-editor-role
+rules:
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - tempclusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - tempclusterrolebindings/status
+  verbs:
+  - get

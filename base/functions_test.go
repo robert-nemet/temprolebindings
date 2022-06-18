@@ -1,4 +1,4 @@
-package controllers
+package base
 
 import (
 	"fmt"
@@ -132,7 +132,7 @@ func Test_calculateCurrentStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := calculateCurrentStatus(tc.trb)
+			result := CalculateCurrentStatus(tmprbacv1.BaseStatus(tc.trb.Status))
 
 			for i, _ := range result.Conditions {
 				assert.Equal(t, tc.expected.Conditions[i].Status, result.Conditions[i].Status)
@@ -150,14 +150,14 @@ func Test_calculateCurrentStatus(t *testing.T) {
 func Test_newStatus(t *testing.T) {
 	testCases := []struct {
 		name    string
-		current tmprbacv1.TempRoleBindingStatus
+		current tmprbacv1.BaseStatus
 		next    tmprbacv1.RoleBindingStatus
 
-		expected tmprbacv1.TempRoleBindingStatus
+		expected tmprbacv1.BaseStatus
 	}{
 		{
 			name: "change pending 2 approved",
-			current: tmprbacv1.TempRoleBindingStatus{
+			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -189,7 +189,7 @@ func Test_newStatus(t *testing.T) {
 			},
 			next: tmprbacv1.TempRoleBindingStatusApproved,
 
-			expected: tmprbacv1.TempRoleBindingStatus{
+			expected: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -223,7 +223,7 @@ func Test_newStatus(t *testing.T) {
 		},
 		{
 			name: "change approved 2 applied",
-			current: tmprbacv1.TempRoleBindingStatus{
+			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -256,7 +256,7 @@ func Test_newStatus(t *testing.T) {
 			},
 			next: tmprbacv1.TempRoleBindingStatusApplied,
 
-			expected: tmprbacv1.TempRoleBindingStatus{
+			expected: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -291,7 +291,7 @@ func Test_newStatus(t *testing.T) {
 		},
 		{
 			name: "change applied 2 expired",
-			current: tmprbacv1.TempRoleBindingStatus{
+			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -325,7 +325,7 @@ func Test_newStatus(t *testing.T) {
 			},
 			next: tmprbacv1.TempRoleBindingStatusExpired,
 
-			expected: tmprbacv1.TempRoleBindingStatus{
+			expected: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
@@ -363,7 +363,7 @@ func Test_newStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resutl := newStatus(tc.current, tc.next)
+			resutl := NewStatus(tc.current, tc.next)
 
 			for i, _ := range resutl.Conditions {
 				assert.Equal(t, resutl.Conditions[i].Status, tc.expected.Conditions[i].Status)
@@ -436,7 +436,7 @@ func Test_holdOrApply(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			next := holdOrApply(tc.trb)
+			next := HoldOrApply(tmprbacv1.BaseSpec(tc.trb.Spec))
 
 			assert.Equal(t, next, tc.expected)
 		})
@@ -572,7 +572,7 @@ func Test_isTempTempRoleBindingExpired(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			time.Sleep(time.Millisecond * 10)
-			assert.Equal(t, tc.expect, isTempTempRoleBindingExpired(tc.trb))
+			assert.Equal(t, tc.expect, IsTempTempRoleBindingExpired(tmprbacv1.BaseSpec(tc.trb.Spec), tc.trb.Status.ToBaseStatus()))
 		})
 	}
 }
@@ -931,7 +931,7 @@ func Test_calculateNextStatus(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			time.Sleep(time.Millisecond * 10)
-			_, next := calculateNextStatus(tc.trb)
+			_, next := GetCurrentAndNextStatus(tc.trb.Status.ToBaseStatus(), tc.trb.Annotations, tmprbacv1.BaseSpec(tc.trb.Spec))
 			assert.Equal(t, tc.expected.Phase, next.Phase)
 		})
 	}

@@ -8,6 +8,24 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
+  - clusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings/status
+  verbs:
+  - get
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - rolebindings
   verbs:
   - create
@@ -23,6 +41,32 @@ rules:
   - rolebindings/status
   verbs:
   - get
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - tempclusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - tempclusterrolebindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - tmprbac.rnemet.dev
+  resources:
+  - tempclusterrolebindings/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - tmprbac.rnemet.dev
   resources:
