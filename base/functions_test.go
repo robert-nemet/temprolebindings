@@ -18,7 +18,7 @@ func Test_calculateCurrentStatus(t *testing.T) {
 		expected tmprbacv1.TempRoleBindingStatus
 	}{
 		{
-			name: "Not set status",
+			name: "Status is not set",
 			trb:  tmprbacv1.TempRoleBinding{},
 			expected: tmprbacv1.TempRoleBindingStatus{
 				Conditions: []tmprbacv1.Condition{
@@ -27,36 +27,12 @@ func Test_calculateCurrentStatus(t *testing.T) {
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
 					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApproved,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusHold,
-					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusPending,
 			},
 		},
 		{
-			name: "Set status",
+			name: "Status is set",
 			trb: tmprbacv1.TempRoleBinding{
 				Status: tmprbacv1.TempRoleBindingStatus{
 					Conditions: []tmprbacv1.Condition{
@@ -66,29 +42,9 @@ func Test_calculateCurrentStatus(t *testing.T) {
 							Type:           tmprbacv1.TempRoleBindingStatusPending,
 						},
 						{
-							Status: false,
-							Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-						},
-						{
 							TransitionTime: metav1.Now(),
 							Status:         true,
 							Type:           tmprbacv1.TempRoleBindingStatusApproved,
-						},
-						{
-							Status: false,
-							Type:   tmprbacv1.TempRoleBindingStatusApplied,
-						},
-						{
-							Status: false,
-							Type:   tmprbacv1.TempRoleBindingStatusExpired,
-						},
-						{
-							Status: false,
-							Type:   tmprbacv1.TempRoleBindingStatusError,
-						},
-						{
-							Status: false,
-							Type:   tmprbacv1.TempRoleBindingStatusHold,
 						},
 					},
 					Phase: tmprbacv1.TempRoleBindingStatusPending,
@@ -101,28 +57,8 @@ func Test_calculateCurrentStatus(t *testing.T) {
 						Type:   tmprbacv1.TempRoleBindingStatusPending,
 					},
 					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
 						Status: true,
 						Type:   tmprbacv1.TempRoleBindingStatusApproved,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusHold,
 					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusPending,
@@ -133,6 +69,8 @@ func Test_calculateCurrentStatus(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := CalculateCurrentStatus(tmprbacv1.BaseStatus(tc.trb.Status))
+
+			assert.Equal(t, len(tc.expected.Conditions), len(result.Conditions))
 
 			for i, _ := range result.Conditions {
 				assert.Equal(t, tc.expected.Conditions[i].Status, result.Conditions[i].Status)
@@ -156,33 +94,13 @@ func Test_newStatus(t *testing.T) {
 		expected tmprbacv1.BaseStatus
 	}{
 		{
-			name: "change pending 2 approved",
+			name: "Status change from Pending to Approved",
 			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApproved,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
 					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusPending,
@@ -197,32 +115,16 @@ func Test_newStatus(t *testing.T) {
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
 					},
 					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApproved,
 						TransitionTime: metav1.Now(),
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
 					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusApproved,
 			},
 		},
 		{
-			name: "change approved 2 applied",
+			name: "Status change from Approved to Applied",
 			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
@@ -231,25 +133,9 @@ func Test_newStatus(t *testing.T) {
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
 					},
 					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApproved,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
 					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusApproved,
@@ -264,10 +150,6 @@ func Test_newStatus(t *testing.T) {
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
 					},
 					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApproved,
@@ -277,20 +159,12 @@ func Test_newStatus(t *testing.T) {
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApplied,
 					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
-					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusApplied,
 			},
 		},
 		{
-			name: "change applied 2 expired",
+			name: "Status change from Applied to Expired",
 			current: tmprbacv1.BaseStatus{
 				Conditions: []tmprbacv1.Condition{
 					{
@@ -299,10 +173,6 @@ func Test_newStatus(t *testing.T) {
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
 					},
 					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-					},
-					{
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApproved,
@@ -311,14 +181,6 @@ func Test_newStatus(t *testing.T) {
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusApplied,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusExpired,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
 					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusApplied,
@@ -331,10 +193,6 @@ func Test_newStatus(t *testing.T) {
 						TransitionTime: metav1.Now(),
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusPending,
-					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusDeclined,
 					},
 					{
 						TransitionTime: metav1.Now(),
@@ -351,10 +209,6 @@ func Test_newStatus(t *testing.T) {
 						Status:         true,
 						Type:           tmprbacv1.TempRoleBindingStatusExpired,
 					},
-					{
-						Status: false,
-						Type:   tmprbacv1.TempRoleBindingStatusError,
-					},
 				},
 				Phase: tmprbacv1.TempRoleBindingStatusExpired,
 			},
@@ -363,15 +217,17 @@ func Test_newStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resutl := NewStatus(tc.current, tc.next)
+			result := NewStatus(tc.current, tc.next)
 
-			for i, _ := range resutl.Conditions {
-				assert.Equal(t, resutl.Conditions[i].Status, tc.expected.Conditions[i].Status)
-				assert.Equal(t, resutl.Conditions[i].Type, tc.expected.Conditions[i].Type)
-				if resutl.Conditions[i].Status {
-					assert.True(t, resutl.Conditions[i].TransitionTime.After(metav1.Time{}.Time))
+			assert.Equal(t, len(tc.expected.Conditions), len(result.Conditions))
+
+			for i, _ := range result.Conditions {
+				assert.Equal(t, result.Conditions[i].Status, tc.expected.Conditions[i].Status)
+				assert.Equal(t, result.Conditions[i].Type, tc.expected.Conditions[i].Type)
+				if result.Conditions[i].Status {
+					assert.True(t, result.Conditions[i].TransitionTime.After(metav1.Time{}.Time))
 				} else {
-					assert.True(t, resutl.Conditions[i].TransitionTime.Equal(&metav1.Time{}))
+					assert.True(t, result.Conditions[i].TransitionTime.Equal(&metav1.Time{}))
 				}
 			}
 		})
