@@ -2,6 +2,13 @@
 
 Documentation for manual testing controllers.
 
+```shell
+kind create cluster
+make manifest
+make install
+make run
+```
+
 ## Files
 
 * setup folder, contains user and roles required for tests:

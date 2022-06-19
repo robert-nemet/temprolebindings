@@ -35,30 +35,6 @@ func MakeDefaultStatus() tmprbacv1.BaseStatus {
 				Status:         true,
 				Type:           tmprbacv1.TempRoleBindingStatusPending,
 			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusDeclined,
-			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusApproved,
-			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusApplied,
-			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusExpired,
-			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusError,
-			},
-			{
-				Status: false,
-				Type:   tmprbacv1.TempRoleBindingStatusHold,
-			},
 		},
 		Phase: tmprbacv1.TempRoleBindingStatusPending,
 	}
@@ -66,14 +42,14 @@ func MakeDefaultStatus() tmprbacv1.BaseStatus {
 
 // newStatus, make new status
 func NewStatus(currentStatus tmprbacv1.BaseStatus, next tmprbacv1.RoleBindingStatus) tmprbacv1.BaseStatus {
-	for i, v := range currentStatus.Conditions {
-		if v.Type == next {
-			currentStatus.Conditions[i].Status = true
-			currentStatus.Conditions[i].TransitionTime = metav1.Now()
-			currentStatus.Phase = next
-			return currentStatus
-		}
+	newStatus := tmprbacv1.Condition{
+		TransitionTime: metav1.Now(),
+		Status:         true,
+		Type:           next,
 	}
+
+	currentStatus.Conditions = append(currentStatus.Conditions, newStatus)
+	currentStatus.Phase = next
 	return currentStatus
 }
 
